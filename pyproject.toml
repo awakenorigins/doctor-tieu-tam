@@ -1,6 +1,6 @@
 [project]
 name = "doctor-tieu-tam"
-version = "0.5.1"
+version = "0.5.2"
 description = "Remote doctor skill for OpenClaw — diagnose and heal PCs and OpenClaw instances over Tailscale/SSH."
 readme = "README.md"
 requires-python = ">=3.10"
