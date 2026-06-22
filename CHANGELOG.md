@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.1 — Immune hardening fixes (audit follow-up)
+- Fixed pyproject version (was 0.2.0) -> 0.5.1.
+- Added `scripts/common.py` (shared run_remote/ps_encoded/detect_os/redact/audit).
+- `openclaw_heal.py` now uses the safe detect_os (no blind Windows fallback).
+- `doctor.py verify --strict`: proxy health must be 200 when a proxy is probed.
+- `immune.py`: antibody schemaVersion, `validate-antibodies`, low-risk-without-rollback warning.
+- More tests: risk gate (low/medium/high), candidate gate, no-verify gate, negative signals.
+
+
 ## v0.3.0 — GitHub polish pack
 - Repositioned project as **Self & Remote Doctor for Agents**.
 - Added clearer README hero, badges, architecture diagram, safety model, use cases, and real-world example.
