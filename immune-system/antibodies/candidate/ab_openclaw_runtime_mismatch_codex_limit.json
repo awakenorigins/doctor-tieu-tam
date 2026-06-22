@@ -1,0 +1,47 @@
+{
+  "id": "ab_openclaw_runtime_mismatch_codex_limit",
+  "name": "OpenClaw runtime mismatch causes Codex usage limit",
+  "status": "candidate",
+  "diseaseClass": "runtime_mismatch",
+  "match": {
+    "patternRegex": [
+      "(?i)Codex.*usage limit",
+      "(?i)model.*(claude|qwen|deepseek).*runtime.*codex",
+      "(?i)selected.*(claude|qwen|deepseek).*Codex"
+    ],
+    "requiredSignals": [
+      "openclaw_gateway_running",
+      "selected_provider_not_codex"
+    ],
+    "negativeSignals": [
+      "actual_codex_provider_selected"
+    ]
+  },
+  "diagnosis": "Selected model/provider does not match the active agent runtime; the session still uses the Codex harness.",
+  "fixPlan": {
+    "risk": "low",
+    "requiresApproval": false,
+    "steps": [
+      "backup_config",
+      "patch_agent_runtime",
+      "restart_gateway"
+    ]
+  },
+  "verifyPlan": [
+    "gateway_running",
+    "proxy_health_200",
+    "proxy_log_seen_request"
+  ],
+  "rollbackPlan": [
+    "restore_config_backup",
+    "restart_gateway"
+  ],
+  "confidence": 0.72,
+  "stats": {
+    "healSuccess": 1,
+    "healFail": 0,
+    "firstSeen": "2026-06-22T00:00:00Z",
+    "lastSeen": "2026-06-22T00:00:00Z"
+  },
+  "sourceIncident": "inc_runtime_mismatch_kkg_pc"
+}
