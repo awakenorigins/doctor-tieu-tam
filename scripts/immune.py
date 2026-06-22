@@ -122,19 +122,28 @@ def cmd_learn(a):
     rollback=inc.get("treatment",{}).get("rollback","")
     risk=a.risk or inc.get("treatment",{}).get("risk","medium")
     status="candidate"
+    rollback=[rollback] if rollback else []
+    warnings=[]
+    if risk=="low" and not rollback:
+        warnings.append("low_risk_without_rollback_cannot_auto_heal")
+    if not verify:
+        warnings.append("no_verify_plan_cannot_auto_heal")
     ab={
+        "schemaVersion":"immune.antibody.v1",
         "id":aid,"name":a.name or (symptoms[0] if symptoms else aid),"status":status,
         "diseaseClass":a.disease_class or "unknown",
         "match":{"patternRegex":[a.pattern_regex or default_regex(symptoms)],"requiredSignals":[x for x in a.required_signals.split(',') if x],"negativeSignals":[x for x in a.negative_signals.split(',') if x]},
         "diagnosis":inc.get("diagnosis",{}).get("rootCause",""),
         "fixPlan":{"risk":risk,"requiresApproval": risk != "low","steps":inc.get("treatment",{}).get("actions",[])},
         "verifyPlan":verify,
-        "rollbackPlan":[rollback] if rollback else [],
+        "rollbackPlan":rollback,
         "confidence":a.confidence,
         "stats":{"healSuccess":1,"healFail":0,"firstSeen":inc.get("timestamp",now()),"lastSeen":now()},
         "sourceIncident":inc.get("incidentId")
     }
     save_json(antibody_path(ab),ab)
+    if warnings:
+        print(json.dumps({"warnings":warnings},ensure_ascii=False))
     if a.generate_test:
         TESTS.mkdir(parents=True,exist_ok=True)
         (TESTS / f"test_{aid}.py").write_text(f"# Generated skeleton for {aid}\n# Symptom: {symptoms[:1]}\ndef test_{slug(aid).replace('-','_')}_placeholder():\n    assert True\n")
@@ -217,6 +226,26 @@ def cmd_vaccine(a):
         out.append({"host":host.get("name") or host.get("target"),"target":host.get("target"),"antibody":ab["id"],"action":"dry-run-scan","checks":ab.get("match",{}).get("requiredSignals",[])})
     print(json.dumps({"dryRun":True,"items":out},indent=2))
 
+REQUIRED_AB_FIELDS = ("id", "name", "status", "match", "fixPlan")
+
+
+def cmd_validate(a):
+    problems=[]
+    for ab in load_antibodies(include_deprecated=True):
+        path=ab.get("_path","?")
+        for f in REQUIRED_AB_FIELDS:
+            if f not in ab: problems.append({"path":path,"missing":f})
+        if ab.get("status") not in ("candidate","trusted","deprecated"):
+            problems.append({"path":path,"bad_status":ab.get("status")})
+        if ab.get("schemaVersion") != "immune.antibody.v1":
+            problems.append({"path":path,"warn":"missing_or_old_schemaVersion"})
+        rx=ab.get("match",{}).get("patternRegex",[])
+        for r in rx:
+            try: re.compile(r)
+            except re.error as e: problems.append({"path":path,"bad_regex":r,"err":str(e)})
+    print(json.dumps({"ok":len(problems)==0,"problems":problems},indent=2,ensure_ascii=False))
+
+
 def cmd_list(a): print(json.dumps(load_antibodies(include_deprecated=True),indent=2,ensure_ascii=False))
 
 def main():
@@ -230,5 +259,6 @@ def main():
     pr=sub.add_parser("antibodies-promote"); pr.add_argument("--id",required=True); pr.add_argument("--status",required=True,choices=["candidate","trusted","deprecated"]); pr.add_argument("--force",action="store_true"); pr.set_defaults(fn=cmd_promote)
     v=sub.add_parser("vaccinate-fleet"); v.add_argument("--fleet",required=True); v.add_argument("--antibody",required=True); v.add_argument("--dry-run",action="store_true"); v.set_defaults(fn=cmd_vaccine)
     sub.add_parser("list-antibodies").set_defaults(fn=cmd_list)
+    sub.add_parser("validate-antibodies").set_defaults(fn=cmd_validate)
     args=p.parse_args(); args.fn(args)
 if __name__=="__main__": main()
