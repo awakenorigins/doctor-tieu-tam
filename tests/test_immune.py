@@ -6,9 +6,18 @@ immune = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(immune)
 
 def test_antibody_regex_score():
-    ab = {'patternRegex': '(?i)codex.*usage limit.*claude', 'confidence': 0.88}
-    assert immune.score('Codex usage limit after selecting Claude model', ab) == 0.88
+    ab = {'match': {'patternRegex': ['(?i)codex.*usage limit.*claude']}, 'confidence': 0.88}
+    sc = immune.component_scores('Codex usage limit after selecting Claude model', ab)
+    assert sc['patternScore'] == 1.0
+    assert sc['confidence'] > 0.5
 
 def test_token_score_fallback():
     ab = {'name': 'gateway down port missing', 'diagnosis': 'OpenClaw gateway stopped'}
-    assert immune.score('gateway stopped', ab) > 0
+    sc = immune.component_scores('gateway stopped', ab)
+    assert sc['patternScore'] > 0
+
+def test_no_rollback_no_autoheal():
+    ab = {'status': 'trusted', 'fixPlan': {'risk': 'low'}, 'verifyPlan': ['gateway_running'], 'rollbackPlan': []}
+    ok, reason = immune.auto_policy(ab, 0.99)
+    assert not ok
+    assert reason == 'no_verified_rollback'
