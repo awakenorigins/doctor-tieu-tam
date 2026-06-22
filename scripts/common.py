@@ -1,25 +1,49 @@
 #!/usr/bin/env python3
-"""Shared helpers for Doctor Tieu Tam scripts.
+"""Shared helpers for Doctor Tieu Tam scripts (single source of truth).
 
-Single source of truth for:
-  - run_remote / ssh_base
-  - ps_encoded (PowerShell -EncodedCommand)
-  - detect_os (safe: never blindly assumes windows on failure)
-  - redact (broad secret redaction)
-  - audit (append JSONL audit log)
+Centralizes:
+  - run_remote / ssh_base                 (SSH transport)
+  - ps_encoded                            (PowerShell -EncodedCommand)
+  - detect_os                             (safe: never assumes windows on failure)
+  - NON_OK_OS                             (states unsafe to heal/write)
+  - verify_gateway                        (H2: prove restart recovery by evidence)
+  - redact / _is_secret_key / _redact_str (H3: key-substring + value scanning)
+  - audit                                 (append JSONL audit log)
 """
-import base64, json, os, subprocess, time
+import base64, json, os, re, subprocess, time
 from pathlib import Path
 
 DEFAULT_KEY = str(Path.home() / ".ssh" / "doctor_tt")
 WORKSPACE = Path(os.environ.get("OPENCLAW_WORKSPACE", str(Path.home() / ".openclaw" / "workspace")))
 AUDIT_LOG = WORKSPACE / "doctor-audit.jsonl"
 
-SECRET_KEYS = (
-    "apikey", "api_key", "token", "bottoken", "bot_token", "accesstoken", "access_token",
-    "refreshtoken", "refresh_token", "idtoken", "id_token", "secret", "clientsecret",
-    "client_secret", "password", "passphrase", "authorization", "bearer", "privatekey",
-    "private_key", "cookie", "sessionkey", "session_key", "gh_token", "githubtoken",
+# Host states in which it is UNSAFE to proceed with a heal/write (audit fix H1).
+NON_OK_OS = ("unreachable", "auth_failed", "timeout", "unknown")
+
+# Audit fix H3: match key NAMES by substring (catch prefixed variants like
+# "openaiApiKey") and also scan string VALUES for token-shaped secrets so a token
+# embedded in a URL / Authorization header cannot leak under an innocuous key.
+SECRET_KEY_SUBSTRINGS = (
+    "apikey", "api_key", "token", "secret", "password", "passwd", "passphrase",
+    "authorization", "oauth", "bearer", "cookie", "session", "credential",
+    "privatekey", "private_key", "accesskey", "access_key",
+)
+
+_SECRET_VALUE_PATTERNS = [
+    re.compile(r"sk-[A-Za-z0-9_\-]{8,}"),                       # OpenAI-style keys
+    re.compile(r"gh[pousr]_[A-Za-z0-9]{20,}"),                  # GitHub tokens
+    re.compile(r"xox[baprs]-[A-Za-z0-9\-]{8,}"),                # Slack tokens
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),                        # AWS access key id
+    re.compile(r"\bBearer\s+[A-Za-z0-9._\-]+", re.I),           # Authorization bearer
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),          # PEM private key
+    re.compile(r"\beyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+"),  # JWT
+]
+
+# secret=... inside query/connection strings (mask only the value part)
+_QS_SECRET = re.compile(
+    r"\b((?:token|api[_-]?key|access[_-]?token|refresh[_-]?token|secret|password|"
+    r"passwd|auth|sig|signature|bearer|key)=)[^&\s\"']+",
+    re.I,
 )
 
 
@@ -77,11 +101,42 @@ def detect_os(target, key):
     return o.lower()
 
 
+def verify_gateway(target, key, osname):
+    """Audit fix H2: prove gateway recovery with real evidence (port/health/state)."""
+    if osname == "windows":
+        ps = ("$s=(Get-ScheduledTask -TaskName 'OpenClaw Gateway' -EA SilentlyContinue).State;"
+              "if($s){'STATE='+$s};"
+              "$p=Get-NetTCPConnection -State Listen -LocalPort 18789 -EA SilentlyContinue;"
+              "if($p){'PORT_18789=listen'}")
+        rc, out, err = run_remote(target, key, ps_encoded(ps), timeout=25)
+        ok = "STATE=Running" in (out or "") or "PORT_18789=listen" in (out or "")
+    else:
+        sh = ("ss -ltn 2>/dev/null | grep -q ':18789' && echo PORT_18789=listen; "
+              "curl -fsS -m5 http://127.0.0.1:20131/health >/dev/null 2>&1 && echo PROXY_HEALTH=200")
+        rc, out, err = run_remote(target, key, sh, timeout=25)
+        ok = "PORT_18789=listen" in (out or "") or "PROXY_HEALTH=200" in (out or "")
+    return ok, (out or err).strip()
+
+
+def _is_secret_key(name):
+    n = str(name).lower()
+    return any(s in n for s in SECRET_KEY_SUBSTRINGS)
+
+
+def _redact_str(s):
+    for p in _SECRET_VALUE_PATTERNS:
+        if p.search(s):
+            return "***REDACTED***"
+    return _QS_SECRET.sub(r"\1***REDACTED***", s)
+
+
 def redact(obj):
     if isinstance(obj, dict):
-        return {k: ("***REDACTED***" if k.lower() in SECRET_KEYS else redact(v)) for k, v in obj.items()}
+        return {k: ("***REDACTED***" if _is_secret_key(k) else redact(v)) for k, v in obj.items()}
     if isinstance(obj, list):
         return [redact(x) for x in obj]
+    if isinstance(obj, str):
+        return _redact_str(obj)
     return obj
 
 
