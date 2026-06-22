@@ -1,0 +1,7 @@
+known-fixes.json
+*.bak-tt-*
+__pycache__/
+*.pyc
+.env
+*.pem
+id_*
