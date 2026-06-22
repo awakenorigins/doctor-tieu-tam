@@ -38,8 +38,19 @@ def run(target, key, remote_cmd, timeout=45):
 
 
 def detect_os(target, key):
-    rc, out, _ = run(target, key, "uname -s 2>/dev/null || echo WINDOWS")
-    return "windows" if (rc != 0 or not out.strip() or "WINDOWS" in out) else out.strip().lower()
+    """Safe OS detection (shared logic).
+
+    Falls back to a local safe probe if scripts.common is unavailable. NEVER
+    blindly assumes windows on a failed/auth/timeout connection (audit gai #2).
+    """
+    try:
+        from common import detect_os as _safe_detect_os  # type: ignore
+    except Exception:  # noqa
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_doctor_common", str(Path(__file__).with_name("common.py")))
+        mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+        _safe_detect_os = mod.detect_os
+    return _safe_detect_os(target, key)
 
 
 def remote_config_path(osname):
