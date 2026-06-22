@@ -72,3 +72,22 @@ Drop this folder into your OpenClaw `skills/` directory. The agent picks it up v
 
 ## License
 MIT — free to use, fork, and share. If it helps you, a ⭐ goes a long way. 🙏
+
+## v0.2 hardening
+
+After an external audit, Doctor Tieu Tam gained several production-safety upgrades:
+
+- `verify` is now real: gateway/task state, port evidence, and health probes.
+- OS detection is safer: SSH/auth/network failures are no longer mislabeled as Windows.
+- Secret redaction is broader: access tokens, refresh tokens, authorization headers, cookies, private keys, etc.
+- `self_doctor.py` adds **local self-check / self-heal** mode so an agent can proactively examine its own host.
+- Known fixes support regex, confidence, risk, platform, verify steps, rollback steps.
+- `openclaw_heal.py` writes an audit log (`doctor-audit.jsonl`) for heal operations.
+- Basic pytest coverage for redaction, matching, and safe OS detection.
+
+```bash
+python3 scripts/doctor.py verify --target user@host --key ~/.ssh/doctor_tt
+python3 scripts/self_doctor.py selfcheck
+python3 scripts/self_doctor.py selfheal          # dry-run by default
+python3 scripts/self_doctor.py selfheal --apply  # only safe fixes
+```
