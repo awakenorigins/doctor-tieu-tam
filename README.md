@@ -1,93 +1,196 @@
 # 🩺 Doctor Tieu Tam
 
-> Turn your AI agent into a **remote doctor** that diagnoses and heals broken PCs and other OpenClaw instances — safely, over Tailscale/SSH.
+[![CI](https://github.com/NachaFromMars/doctor-tieu-tam/actions/workflows/ci.yml/badge.svg)](https://github.com/NachaFromMars/doctor-tieu-tam/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/NachaFromMars/doctor-tieu-tam?label=release)](https://github.com/NachaFromMars/doctor-tieu-tam/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Your bot freezes at 2 AM. You're not home. The machine is across the city.
-With **Doctor Tieu Tam**, your agent just... fixes it. By itself. Safely.
+> **Self & remote doctor for AI agents** — diagnose, heal, verify, and learn across local machines and remote PCs over Tailscale/SSH.
+
+When an agent breaks, Doctor Tieu Tam helps it do what a good technician would do:
+**check the patient, find the real cause, back up before touching anything, apply the smallest safe fix, verify with evidence, and remember the cure.**
 
 ---
 
-## Why this exists
+## Why this matters
 
-Most "self-healing" tools either retry blindly or need you sitting at the keyboard. This one is different: it does **real root-cause diagnosis and permanent fixes on remote machines**, and it refuses to be reckless while doing it.
+AI agents are becoming long-running workers: they manage chats, code, tasks, models, proxies, browser sessions, GitHub repos, and remote machines. When something fails, the usual answer is still: “wake up the human.”
 
-Inspired by [`psyduckler/self-healing-agents`](https://github.com/psyduckler/self-healing-agents) (Detect → Triage → Diagnose → Fix → Verify → Log), extended with cross-platform health checks and a **battle-tested remote SSH heal flow** for OpenClaw on Windows + Linux/macOS.
+Doctor Tieu Tam is built for the next step: **agents that can safely repair themselves and other agents.**
 
-## What it does
+- Bot selected Claude/Qwen but still hits a Codex usage limit? → fix runtime/provider config.
+- Gateway is running but the service state looks inactive? → verify by ports and health probes, not assumptions.
+- Remote PC is online but the agent is silent? → connect through Tailscale/SSH, inspect logs/config, restart safely.
+- Local host looks sick? → run `self_doctor.py` in dry-run first, then apply only safe fixes.
 
-🔌 **Connects safely** to a remote machine over Tailscale + SSH (only with a key the owner installed).
-🩺 **Examines** the patient — OS, OpenClaw gateway state, key ports, CPU/RAM/disk.
-🔎 **Diagnoses** the real root cause (matches a learned `known-fixes.json` first).
-💾 **Backs up** before touching anything.
-🛠️ **Heals** the OpenClaw config (read → patch → restart) — no clobbering one-liners.
-✅ **Verifies** with real evidence: HTTP 200, service `Running`, proxy log shows the request.
-🧠 **Learns** — every cured case is saved so the next fix is faster.
+---
 
-## Effectiveness — a real case
+## Who is this for?
 
-A remote PC ran an AI bot that **"had the right model selected but still wouldn't run."** The agent SSH'd in, traced it to a runtime misconfiguration, backed up the config, patched it, restarted the gateway, and confirmed the bot was answering through the right model — **without a human touching that machine.**
+Doctor Tieu Tam currently focuses on **OpenClaw agents**, but the pattern fits many agent runtimes:
 
-## Safety first (this is the point)
+| Agent / runtime | What Doctor can help with |
+|---|---|
+| **OpenClaw** | gateway health, model/provider/runtime config, Telegram bot instances, local self-check |
+| **Codex-style harnesses** | “selected non-Codex model but still runs Codex” runtime mismatch diagnosis |
+| **Claude / OpenAI API proxies** | port/proxy health, `/health`, `/v1/models`, chat completion verification |
+| **GitHub automation agents** | repo/push workflow checks, token redaction patterns, release/issue workflows |
+| **Any SSH-reachable PC/server** | OS detection, CPU/RAM/disk, port checks, remote command evidence |
 
-1. 🔒 **Never logs in** without a key the machine owner added.
-2. 💾 **Always backs up** (`*.bak-tt-<timestamp>`) before any change.
-3. 🧩 **Reads → merges → writes.** Never overwrites whole files blindly.
-4. 🧪 **Proves the fix** with evidence — never claims "fixed" on faith.
-5. 🙅 **Never touches** credentials/API keys on its own.
-6. 🤐 **Never prints secrets** — `apiKey`/`token`/`botToken` are redacted.
-7. 🚨 **Escalates** on credential, data-loss, or repeated-failure cases.
+It is not a medical app. It is a **remote ops doctor for AI agent infrastructure**.
 
-> An agent that can fix machines is powerful. An agent that knows when **not** to act is trustworthy. Doctor Tieu Tam is built to be both.
+---
 
-## Quick start
+## Architecture
 
-```bash
-# 1. create a heal key; give the .pub to the machine owner to add
-ssh-keygen -t ed25519 -N '' -C 'doctor-tieu-tam' -f ~/.ssh/doctor_tt
-cat ~/.ssh/doctor_tt.pub
+```mermaid
+flowchart LR
+  A[Agent / Operator] --> B[Tailscale + SSH]
+  B --> C[Remote PC / Server]
+  C --> D[OpenClaw Gateway / Agent Runtime]
+  D --> E[Logs + Config + Ports]
+  E --> F[Diagnose]
+  F --> G[Backup]
+  G --> H[Patch / Restart]
+  H --> I[Verify Evidence]
+  I --> J[known-fixes.json]
+  J --> F
 
-# 2. examine the patient
-python3 scripts/doctor.py connect-test --target user@host --key ~/.ssh/doctor_tt
-python3 scripts/doctor.py health       --target user@host --key ~/.ssh/doctor_tt
-python3 scripts/doctor.py scan         --target user@host --key ~/.ssh/doctor_tt
-
-# 3. heal an OpenClaw runtime mismatch (e.g. "Codex limit" despite a Claude model)
-python3 scripts/openclaw_heal.py set-runtime --target user@host \
-  --provider claudekkg --runtime openclaw --key ~/.ssh/doctor_tt
-python3 scripts/openclaw_heal.py restart --target user@host --key ~/.ssh/doctor_tt
-
-# 4. record the cure so it's faster next time
-python3 scripts/doctor.py log --symptom "..." --cause "..." --fix "..." --fix-type heal
+  A --> K[Self Doctor]
+  K --> L[Local Health Check]
+  L --> M[Dry-run Safe Fixes]
 ```
 
-## Files
-- `SKILL.md` — full workflow + safety rules (loaded by OpenClaw)
-- `scripts/doctor.py` — connect-test / scan / health / check / log / list-fixes
-- `scripts/openclaw_heal.py` — get-config / backup / restart / set-runtime
-- `references/openclaw-playbook.md` — common OpenClaw heal cases
-- `references/error-patterns.md` — pattern → root cause → fix
+---
 
-## Install as an OpenClaw skill
-Drop this folder into your OpenClaw `skills/` directory. The agent picks it up via `SKILL.md`.
+## What it can heal today
 
-## License
-MIT — free to use, fork, and share. If it helps you, a ⭐ goes a long way. 🙏
+✅ Remote OpenClaw runtime mismatch (`/model` says Claude, but runtime still uses Codex)
+✅ Gateway task/service state checks on Windows/Linux
+✅ Port evidence checks (`18789`, `20128`, `20131`)
+✅ Proxy/API health checks (`/health`, model/API reachability)
+✅ Config JSON backup + safe patching
+✅ Local self-check/self-heal dry-run
+✅ Known-fix matching with regex/confidence/risk metadata
+✅ Secret redaction and heal audit log
 
-## v0.2 hardening
+Planned for v1.0:
+- Redacted diff before every config patch
+- Rollback commands for each heal
+- Tailscale SSH ACL-first mode
+- Integration with `openclaw doctor --lint/--fix/--deep`
+- Mock SSH integration tests
+- Fleet registry for many machines
 
-After an external audit, Doctor Tieu Tam gained several production-safety upgrades:
+---
 
-- `verify` is now real: gateway/task state, port evidence, and health probes.
-- OS detection is safer: SSH/auth/network failures are no longer mislabeled as Windows.
-- Secret redaction is broader: access tokens, refresh tokens, authorization headers, cookies, private keys, etc.
-- `self_doctor.py` adds **local self-check / self-heal** mode so an agent can proactively examine its own host.
-- Known fixes support regex, confidence, risk, platform, verify steps, rollback steps.
-- `openclaw_heal.py` writes an audit log (`doctor-audit.jsonl`) for heal operations.
-- Basic pytest coverage for redaction, matching, and safe OS detection.
+## Safety model
+
+This project is intentionally conservative.
+
+1. 🔒 **No unauthorized login** — remote access only works after the machine owner installs an SSH key.
+2. 💾 **Backup before write** — config changes create `*.bak-tt-<timestamp>` backups.
+3. 🧩 **Read → patch → write** — no blind file clobbering.
+4. 🧪 **Verify with evidence** — service state, port listeners, HTTP probes, logs.
+5. 🤐 **Secret redaction** — tokens, cookies, API keys, auth headers, private keys are redacted.
+6. 📝 **Audit log** — heal operations are written to `doctor-audit.jsonl`.
+7. 🚨 **Escalate on risk** — credentials, data loss, repeated failure, or high-risk fixes require a human.
+
+> An agent that can fix machines is powerful. An agent that knows when **not** to act is trustworthy.
+
+---
+
+## 5-minute quickstart
+
+### 1) Create a doctor key
 
 ```bash
+ssh-keygen -t ed25519 -N '' -C 'doctor-tieu-tam' -f ~/.ssh/doctor_tt
+cat ~/.ssh/doctor_tt.pub
+```
+
+Install the public key on the remote machine.
+
+### 2) Check connection
+
+```bash
+python3 scripts/doctor.py connect-test --target user@host --key ~/.ssh/doctor_tt
+```
+
+### 3) Run health + verify
+
+```bash
+python3 scripts/doctor.py health --target user@host --key ~/.ssh/doctor_tt
 python3 scripts/doctor.py verify --target user@host --key ~/.ssh/doctor_tt
+```
+
+### 4) Heal an OpenClaw runtime mismatch
+
+```bash
+python3 scripts/openclaw_heal.py set-runtime --target user@host \
+  --provider claudekkg --runtime openclaw --key ~/.ssh/doctor_tt
+
+python3 scripts/openclaw_heal.py restart --target user@host --key ~/.ssh/doctor_tt
+```
+
+### 5) Run local self-doctor
+
+```bash
 python3 scripts/self_doctor.py selfcheck
 python3 scripts/self_doctor.py selfheal          # dry-run by default
 python3 scripts/self_doctor.py selfheal --apply  # only safe fixes
 ```
+
+---
+
+## Real-world example
+
+A remote Windows PC ran an AI bot that showed the correct model:
+
+```text
+claudekkg/cc/claude-opus-4-8
+```
+
+…but every message still failed with:
+
+```text
+You've reached your Codex subscription usage limit
+```
+
+Diagnosis: model selection changed, but the runtime still used the Codex harness.
+
+Doctor Tieu Tam:
+1. connected via Tailscale/SSH,
+2. backed up `openclaw.json`,
+3. patched `agentRuntime.id = "openclaw"` for the provider and model entries,
+4. restarted the gateway,
+5. verified the remote PC sent a real `/v1/chat/completions` request to the Claude proxy.
+
+That case became a known fix.
+
+See [`examples/runtime-mismatch.md`](examples/runtime-mismatch.md).
+
+---
+
+## Files
+
+- `SKILL.md` — OpenClaw skill workflow + safety rules
+- `scripts/doctor.py` — connect-test / scan / health / verify / known-fixes
+- `scripts/openclaw_heal.py` — remote config backup / patch / restart / audit log
+- `scripts/self_doctor.py` — local self-check and self-heal dry-run/apply
+- `references/openclaw-playbook.md` — common OpenClaw heal cases
+- `references/error-patterns.md` — pattern → root cause → fix
+- `examples/` — real usage examples
+
+---
+
+## Install as an OpenClaw skill
+
+Drop this folder into your OpenClaw `skills/` directory. OpenClaw will load `SKILL.md`.
+
+---
+
+## License
+
+MIT — free to use, fork, improve, and share.
+
+If this saves one late-night debugging session, a ⭐ helps others find it too. 🙏
