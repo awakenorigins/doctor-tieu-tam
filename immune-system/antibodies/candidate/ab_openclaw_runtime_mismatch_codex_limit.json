@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "immune.antibody.v1",
   "id": "ab_openclaw_runtime_mismatch_codex_limit",
   "name": "OpenClaw runtime mismatch causes Codex usage limit",
   "status": "candidate",
