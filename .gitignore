@@ -1,6 +1,8 @@
 known-fixes.json
 *.bak-tt-*
+doctor-audit.jsonl
 __pycache__/
+.pytest_cache/
 *.pyc
 .env
 *.pem
