@@ -102,7 +102,20 @@ def cmd_verify(a):
         rc, out, err = run_remote(a.target, a.key, sh)
     raw = out or err
     ev["checks"] = [l for l in raw.splitlines() if l.strip()]
-    ev["ok"] = ("GATEWAY_TASK=Running" in raw) or ("GATEWAY=running" in raw) or any("PORT_18789=listen" in c for c in ev["checks"])
+    gateway_ok = ("GATEWAY_TASK=Running" in raw) or ("GATEWAY=running" in raw) or any("PORT_18789=listen" in c for c in ev["checks"])
+    proxy_present = any(c.startswith("PROXY_HEALTH=") for c in ev["checks"])
+    proxy_ok = ("PROXY_HEALTH=200" in raw)
+    # Strict mode: if a proxy is configured/probed, its health MUST be 200.
+    if a.strict:
+        ev["strict"] = True
+        ev["ok"] = bool(gateway_ok and (proxy_ok or not proxy_present))
+        if proxy_present and not proxy_ok:
+            ev["ok"] = False
+            ev["failed_checks"] = ["proxy_health_not_200"]
+    else:
+        ev["ok"] = bool(gateway_ok)
+        ev["gatewayOk"] = gateway_ok
+        ev["proxyOk"] = proxy_ok if proxy_present else None
     print(json.dumps(ev, indent=2))
 
 
@@ -242,7 +255,7 @@ def main():
     add_target(sub.add_parser("connect-test")).set_defaults(fn=cmd_connect_test)
     add_target(sub.add_parser("scan")).set_defaults(fn=cmd_scan)
     add_target(sub.add_parser("health")).set_defaults(fn=cmd_health)
-    add_target(sub.add_parser("verify")).set_defaults(fn=cmd_verify)
+    vp = add_target(sub.add_parser("verify")); vp.add_argument("--strict", action="store_true"); vp.set_defaults(fn=cmd_verify)
 
     c = sub.add_parser("check"); c.add_argument("symptom"); c.set_defaults(fn=cmd_check)
 
