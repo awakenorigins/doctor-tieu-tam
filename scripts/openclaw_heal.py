@@ -18,7 +18,13 @@ import argparse, json, os, shlex, subprocess, time
 from pathlib import Path
 
 DEFAULT_KEY = str(Path.home() / ".ssh" / "doctor_tt")
-SECRET_KEYS = ("apikey", "token", "bottoken", "secret", "password")
+AUDIT_LOG = Path(os.environ.get("OPENCLAW_WORKSPACE", str(Path.home() / ".openclaw" / "workspace"))) / "doctor-audit.jsonl"
+SECRET_KEYS = (
+    "apikey", "api_key", "token", "bottoken", "bot_token", "accesstoken", "access_token",
+    "refreshtoken", "refresh_token", "idtoken", "id_token", "secret", "clientsecret",
+    "client_secret", "password", "passphrase", "authorization", "bearer", "privatekey",
+    "private_key", "cookie", "sessionkey", "session_key", "gh_token", "githubtoken",
+)
 
 
 def ssh(target, key):
@@ -99,6 +105,13 @@ def redact(obj):
     return obj
 
 
+def audit(event):
+    event = {**event, "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    AUDIT_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with AUDIT_LOG.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
 def main():
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -132,6 +145,8 @@ def main():
             if mk.startswith(a.provider + "/"):
                 models[mk] = {**(models[mk] or {}), "agentRuntime": {"id": a.runtime}}
         write_config(a.target, a.key, osname, json.dumps(cfg, indent=2, ensure_ascii=False))
+        audit({"action": "set-runtime", "target": a.target, "provider": a.provider,
+               "runtime": a.runtime, "backup": bname, "os": osname})
         print(json.dumps({"ok": True, "backup": bname, "provider": a.provider, "runtime": a.runtime}))
 
 
