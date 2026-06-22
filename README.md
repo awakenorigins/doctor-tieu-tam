@@ -225,3 +225,32 @@ Fix → Verify → Record Incident → Learn Antibody → Add Test/Example → R
 ```
 
 This turns Doctor Tieu Tam from a one-off repair kit into a learning immune system for agent fleets.
+
+## v0.5 — Simple outside, safe inside
+
+Doctor Tieu Tam now keeps the UI simple while the immune engine becomes stricter internally.
+
+**Simple operator loop:**
+
+```text
+Check → Heal → Verify → Learn
+```
+
+**Inside the immune engine:**
+
+- Incidents are stored as richer patient records.
+- Antibodies are split into `candidate/`, `trusted/`, and `deprecated/`.
+- Vaccines live in `immune-system/vaccines/fleet_checks/` for future fleet scans.
+- Confidence combines pattern match, evidence signals, history, and environment.
+- Risk gate is enforced:
+  - Low risk + trusted + verify plan + rollback plan + high confidence → auto-eligible
+  - Medium risk → dry-run + ask
+  - High risk → diagnose only
+  - **No rollback = no auto-heal**
+
+```bash
+python3 scripts/immune.py match --symptom "Codex usage limit after selecting Claude"
+python3 scripts/immune.py apply-known-fix --symptom "Codex usage limit after selecting Claude" --dry-run
+python3 scripts/immune.py antibodies-promote --id ab_openclaw_runtime_mismatch_codex_limit --status trusted --force
+python3 scripts/immune.py vaccinate-fleet --fleet fleet.json --antibody ab_openclaw_runtime_mismatch_codex_limit --dry-run
+```
