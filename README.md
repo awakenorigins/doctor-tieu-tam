@@ -1,45 +1,62 @@
-# 🩺 Doctor Tiểu Tâm
+# 🩺 Doctor Tieu Tam
 
-Remote **doctor** skill for OpenClaw agents — diagnose and heal PCs and other OpenClaw instances over **Tailscale/SSH**.
+> Turn your AI agent into a **remote doctor** that diagnoses and heals broken PCs and other OpenClaw instances — safely, over Tailscale/SSH.
 
-Inspired by the structure of [`psyduckler/self-healing-agents`](https://github.com/psyduckler/self-healing-agents) (Detect → Triage → Diagnose → Fix → Verify → Log), extended with cross-platform health checks and a battle-tested **remote SSH heal** workflow for OpenClaw (Windows + Linux/macOS).
+Your bot freezes at 2 AM. You're not home. The machine is across the city.
+With **Doctor Tieu Tam**, your agent just... fixes it. By itself. Safely.
+
+---
+
+## Why this exists
+
+Most "self-healing" tools either retry blindly or need you sitting at the keyboard. This one is different: it does **real root-cause diagnosis and permanent fixes on remote machines**, and it refuses to be reckless while doing it.
+
+Inspired by [`psyduckler/self-healing-agents`](https://github.com/psyduckler/self-healing-agents) (Detect → Triage → Diagnose → Fix → Verify → Log), extended with cross-platform health checks and a **battle-tested remote SSH heal flow** for OpenClaw on Windows + Linux/macOS.
 
 ## What it does
 
-- **Connect** safely to a remote machine via Tailscale + SSH (operator-provisioned key only).
-- **Scan / Health** — OS, OpenClaw gateway state, key ports (18789/20128/20131), CPU/RAM/disk.
-- **Diagnose** — match against a learned `known-fixes.json`, classify root cause.
-- **Heal OpenClaw** — read → backup → patch config JSON → restart gateway (no clobbering one-liners).
-- **Verify** — prove the fix with real evidence (HTTP 200, service Running, proxy log shows request).
-- **Learn** — append each cured case to `known-fixes.json`.
+🔌 **Connects safely** to a remote machine over Tailscale + SSH (only with a key the owner installed).
+🩺 **Examines** the patient — OS, OpenClaw gateway state, key ports, CPU/RAM/disk.
+🔎 **Diagnoses** the real root cause (matches a learned `known-fixes.json` first).
+💾 **Backs up** before touching anything.
+🛠️ **Heals** the OpenClaw config (read → patch → restart) — no clobbering one-liners.
+✅ **Verifies** with real evidence: HTTP 200, service `Running`, proxy log shows the request.
+🧠 **Learns** — every cured case is saved so the next fix is faster.
 
-## Safety first
+## Effectiveness — a real case
 
-1. Never log in without a key the machine owner added.
-2. Always back up config (`*.bak-tt-<timestamp>`) before editing.
-3. Read → merge → write. Never clobber whole files.
-4. Verify with evidence, not assumptions.
-5. Never print secrets; redact `apiKey`/`token`/`botToken`.
-6. Escalate on credential/data-loss/repeated-failure cases.
+A remote PC ran an AI bot that **"had the right model selected but still wouldn't run."** The agent SSH'd in, traced it to a runtime misconfiguration, backed up the config, patched it, restarted the gateway, and confirmed the bot was answering through the right model — **without a human touching that machine.**
+
+## Safety first (this is the point)
+
+1. 🔒 **Never logs in** without a key the machine owner added.
+2. 💾 **Always backs up** (`*.bak-tt-<timestamp>`) before any change.
+3. 🧩 **Reads → merges → writes.** Never overwrites whole files blindly.
+4. 🧪 **Proves the fix** with evidence — never claims "fixed" on faith.
+5. 🙅 **Never touches** credentials/API keys on its own.
+6. 🤐 **Never prints secrets** — `apiKey`/`token`/`botToken` are redacted.
+7. 🚨 **Escalates** on credential, data-loss, or repeated-failure cases.
+
+> An agent that can fix machines is powerful. An agent that knows when **not** to act is trustworthy. Doctor Tieu Tam is built to be both.
 
 ## Quick start
 
 ```bash
-# 1. create a heal key, give the .pub to the machine owner to add
+# 1. create a heal key; give the .pub to the machine owner to add
 ssh-keygen -t ed25519 -N '' -C 'doctor-tieu-tam' -f ~/.ssh/doctor_tt
 cat ~/.ssh/doctor_tt.pub
 
-# 2. test + diagnose
+# 2. examine the patient
 python3 scripts/doctor.py connect-test --target user@host --key ~/.ssh/doctor_tt
 python3 scripts/doctor.py health       --target user@host --key ~/.ssh/doctor_tt
 python3 scripts/doctor.py scan         --target user@host --key ~/.ssh/doctor_tt
 
-# 3. heal an OpenClaw runtime mismatch (Codex limit despite Claude model)
+# 3. heal an OpenClaw runtime mismatch (e.g. "Codex limit" despite a Claude model)
 python3 scripts/openclaw_heal.py set-runtime --target user@host \
   --provider claudekkg --runtime openclaw --key ~/.ssh/doctor_tt
 python3 scripts/openclaw_heal.py restart --target user@host --key ~/.ssh/doctor_tt
 
-# 4. record the cure
+# 4. record the cure so it's faster next time
 python3 scripts/doctor.py log --symptom "..." --cause "..." --fix "..." --fix-type heal
 ```
 
@@ -50,5 +67,8 @@ python3 scripts/doctor.py log --symptom "..." --cause "..." --fix "..." --fix-ty
 - `references/openclaw-playbook.md` — common OpenClaw heal cases
 - `references/error-patterns.md` — pattern → root cause → fix
 
+## Install as an OpenClaw skill
+Drop this folder into your OpenClaw `skills/` directory. The agent picks it up via `SKILL.md`.
+
 ## License
-MIT
+MIT — free to use, fork, and share. If it helps you, a ⭐ goes a long way. 🙏
