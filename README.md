@@ -194,3 +194,34 @@ Drop this folder into your OpenClaw `skills/` directory. OpenClaw will load `SKI
 MIT — free to use, fork, improve, and share.
 
 If this saves one late-night debugging session, a ⭐ helps others find it too. 🙏
+
+## Doctor Immune System 🧬
+
+Every successful heal can become an **antibody**: a reusable, scored known-fix that helps the next agent recover faster.
+
+```bash
+# Record a cured incident
+python3 scripts/immune.py record-incident \
+  --symptom "Claude model selected but Codex usage limit appears" \
+  --cause "Runtime remained Codex harness" \
+  --fix "Set agentRuntime.id=openclaw and restart gateway" \
+  --verify "Proxy receives POST /v1/chat/completions;;Bot replies through Claude" \
+  --risk low
+
+# Learn an antibody from that incident
+python3 scripts/immune.py learn --incident inc-xxxx --confidence 0.85 --risk low
+
+# Match later symptoms
+python3 scripts/immune.py match --symptom "Codex usage limit after selecting Claude"
+
+# Propose / dry-run a known fix
+python3 scripts/immune.py apply-known-fix --symptom "Codex usage limit after selecting Claude" --dry-run
+```
+
+The loop is:
+
+```text
+Fix → Verify → Record Incident → Learn Antibody → Add Test/Example → Release
+```
+
+This turns Doctor Tieu Tam from a one-off repair kit into a learning immune system for agent fleets.
