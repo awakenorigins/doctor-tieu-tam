@@ -1,0 +1,12 @@
+{
+  "id": "vac_runtime_mismatch_probe",
+  "name": "Probe OpenClaw runtime mismatch risk",
+  "antibody": "ab_openclaw_runtime_mismatch_codex_limit",
+  "signals": [
+    "openclaw_gateway_running",
+    "selected_provider_not_codex",
+    "agent_runtime_codex"
+  ],
+  "mode": "dry-run",
+  "description": "Scan fleet nodes for sessions/providers where a non-Codex model is configured but runtime still routes through Codex."
+}

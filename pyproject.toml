@@ -1,0 +1,16 @@
+[project]
+name = "doctor-tieu-tam"
+version = "0.5.2"
+description = "Remote doctor skill for OpenClaw — diagnose and heal PCs and OpenClaw instances over Tailscale/SSH."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Tieu Tam", email = "tieutam@sendclaw.com" }]
+
+[project.scripts]
+doctor-tieu-tam = "scripts.doctor:main"
+openclaw-heal = "scripts.openclaw_heal:main"
+self-doctor = "scripts.self_doctor:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
